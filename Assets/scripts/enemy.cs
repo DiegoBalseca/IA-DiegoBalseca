@@ -10,6 +10,9 @@ public class enemy : MonoBehaviour
         Patrolling,
         Chasing,
         Searching,
+        Waiting,
+        Attacking,
+
     }
 
     public EnemyState currentState;
@@ -32,6 +35,9 @@ public class enemy : MonoBehaviour
     [SerializeField] private float _searchWaitTime = 15;
 
     [SerializeField] private float _searchRadius = 10;
+
+    //cosas waiting
+    [SerializeField] private float _waitingTime = 5; 
 
 
     void Awake()
@@ -209,7 +215,7 @@ public class enemy : MonoBehaviour
             if(hit.collider.CompareTag("Player"))
             {
                 _playerLastPositionKnown = _player.position;
-                
+
                 return true;
             }
             else
