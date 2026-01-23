@@ -19,15 +19,15 @@ public class enemy : MonoBehaviour
     Transform _player;
     Vector3 _playerLastPositionKnown;
 
-    // PATRULLA
+    // PATROL
     [SerializeField] private Transform[] _patrolPoints;
     private int _currentPatrolIndex;
 
-    // DETECCIÓN
+    // DETECTION
     [SerializeField] private float _detectionRange = 7;
     [SerializeField] private float _detectionAngle = 90;
 
-    // ATAQUE
+    // ATTACKING
     [SerializeField] private float _attackRange = 2f;
 
     // SEARCH
@@ -78,7 +78,7 @@ public class enemy : MonoBehaviour
         }
     }
 
-    // ---------------- STATES ----------------
+    // ESTADOS
 
     void Patrol()
     {
@@ -157,7 +157,7 @@ public class enemy : MonoBehaviour
         }
     }
 
-    // ---------------- HELPERS ----------------
+    
 
     void SetPatrolPoint()
     {
