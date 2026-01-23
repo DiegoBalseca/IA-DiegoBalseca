@@ -3,16 +3,15 @@ using UnityEngine.AI;
 
 public class enemy : MonoBehaviour
 {
-
     private NavMeshAgent _enemyAgent;
+
     public enum EnemyState
     {
         Patrolling,
+        Waiting,
         Chasing,
         Searching,
-        Waiting,
-        Attacking,
-
+        Attacking
     }
 
     public EnemyState currentState;
@@ -20,25 +19,25 @@ public class enemy : MonoBehaviour
     Transform _player;
     Vector3 _playerLastPositionKnown;
 
-    //cosas patrullar
-
+    // PATRULLA
     [SerializeField] private Transform[] _patrolPoints;
+    private int _currentPatrolIndex;
 
-    //cosas detección
+    // DETECCIÓN
     [SerializeField] private float _detectionRange = 7;
     [SerializeField] private float _detectionAngle = 90;
 
-    //cosas busqueda
+    // ATAQUE
+    [SerializeField] private float _attackRange = 2f;
 
+    // SEARCH
     private float _searchTimer;
-
     [SerializeField] private float _searchWaitTime = 15;
-
     [SerializeField] private float _searchRadius = 10;
 
-    //cosas waiting
-    [SerializeField] private float _waitingTime = 5; 
-
+    // WAITING
+    [SerializeField] private float _waitingTime = 5;
+    private float _waitingTimer;
 
     void Awake()
     {
@@ -49,91 +48,120 @@ public class enemy : MonoBehaviour
     void Start()
     {
         currentState = EnemyState.Patrolling;
-        SetRandomPatrolPoint();
+        _currentPatrolIndex = 0;
+        SetPatrolPoint();
     }
 
-    
     void Update()
     {
         switch (currentState)
         {
             case EnemyState.Patrolling:
                 Patrol();
+                break;
 
-            break;
+            case EnemyState.Waiting:
+                Waiting();
+                break;
+
             case EnemyState.Chasing:
                 Chase();
+                break;
 
-            break;
             case EnemyState.Searching:
                 Search();
+                break;
 
-            break;
-            default:
-                Patrol();
-
-            break;
+            case EnemyState.Attacking:
+                Attack();
+                break;
         }
     }
 
+    // ---------------- STATES ----------------
+
     void Patrol()
     {
-        if(OnRange())
+        if (OnRange())
         {
             currentState = EnemyState.Chasing;
-        }
-        if(_enemyAgent.remainingDistance < 0.5f)
-        {
-            SetRandomPatrolPoint();
+            return;
         }
 
-
-
-
-
-       if(_enemyAgent.remainingDistance < 0.5f)
+        if (_enemyAgent.remainingDistance < 0.5f)
         {
-            SetRandomPatrolPoint();
-        } 
-        SetRandomPatrolPoint();
+            currentState = EnemyState.Waiting;
+            _waitingTimer = 0;
+        }
+    }
+
+    void Waiting()
+    {
+        _waitingTimer += Time.deltaTime;
+
+        if (_waitingTimer >= _waitingTime)
+        {
+            _currentPatrolIndex = (_currentPatrolIndex + 1) % _patrolPoints.Length;
+            SetPatrolPoint();
+            currentState = EnemyState.Patrolling;
+        }
     }
 
     void Chase()
     {
-        if(!OnRange())
+        _enemyAgent.SetDestination(_player.position);
+        _playerLastPositionKnown = _player.position;
+
+        float distance = Vector3.Distance(transform.position, _player.position);
+
+        if (distance <= _attackRange)
+        {
+            currentState = EnemyState.Attacking;
+        }
+        else if (!OnRange())
         {
             currentState = EnemyState.Searching;
+            _searchTimer = 0;
         }
-        _enemyAgent.SetDestination(_player.position);
+    }
 
-        _playerLastPositionKnown = _player.position;
+    void Attack()
+    {
+        Debug.Log("Atacando al jugador");
+
+        currentState = EnemyState.Chasing;
     }
 
     void Search()
     {
-        if(OnRange())
+        if (OnRange())
         {
             currentState = EnemyState.Chasing;
+            return;
         }
 
         _searchTimer += Time.deltaTime;
 
-        if(_searchTimer < _searchWaitTime)
-        {
-            if(_enemyAgent.remainingDistance < 0.5f)
-            {
-                Vector3 randomPoint;
-                if(RandomSearchPoint(_playerLastPositionKnown, _searchRadius, out randomPoint))
-                {
-                    _enemyAgent.SetDestination(randomPoint);
-                }
-            }
-        }
-        else
+        if (_searchTimer >= _searchWaitTime)
         {
             currentState = EnemyState.Patrolling;
-            _searchTimer = 0;
+            SetPatrolPoint();
         }
+        else if (_enemyAgent.remainingDistance < 0.5f)
+        {
+            Vector3 randomPoint;
+            if (RandomSearchPoint(_playerLastPositionKnown, _searchRadius, out randomPoint))
+            {
+                _enemyAgent.SetDestination(randomPoint);
+            }
+        }
+    }
+
+    // ---------------- HELPERS ----------------
+
+    void SetPatrolPoint()
+    {
+        _enemyAgent.SetDestination(_patrolPoints[_currentPatrolIndex].position);
     }
 
     bool RandomSearchPoint(Vector3 center, float radius, out Vector3 point)
@@ -141,7 +169,7 @@ public class enemy : MonoBehaviour
         Vector3 randomPoint = center + Random.insideUnitSphere * radius;
 
         NavMeshHit hit;
-        if(NavMesh.SamplePosition(randomPoint, out hit, 4, NavMesh.AllAreas))
+        if (NavMesh.SamplePosition(randomPoint, out hit, 4, NavMesh.AllAreas))
         {
             point = hit.position;
             return true;
@@ -149,85 +177,26 @@ public class enemy : MonoBehaviour
 
         point = Vector3.zero;
         return false;
-
-    }
-
-    void SetRandomPatrolPoint()
-    {
-        _enemyAgent.SetDestination(_patrolPoints[Random.Range(0, _patrolPoints.Length)].position);
-    }
-
-
-    void OnDrawGizmos()
-    {
-        Gizmos.color = Color.blue;
-        foreach (Transform point in _patrolPoints)
-        {
-            Gizmos.DrawWireSphere(point.position, 0.3f);
-        }
-
-        Gizmos.color = Color.green;
-        Gizmos.DrawWireSphere(transform.position, _detectionRange);
-
-        Gizmos.color = Color.yellow;
-
-        Vector3 fovLine1 = Quaternion.AngleAxis(_detectionAngle * 0.5f, transform.up) * transform.forward * _detectionRange;
-        Vector3 fovLine2 = Quaternion.AngleAxis(-_detectionAngle * 0.5f, transform.up) * transform.forward * _detectionRange;
-
-        Gizmos.DrawLine(transform.position, transform.position + fovLine1);
-        Gizmos.DrawLine(transform.position, transform.position + fovLine2);
     }
 
     bool OnRange()
     {
-        /*if(Vector3.Distance(transform.position, _player.position) < _detectionRange)
-        {
-            return true;
-        }
-        else
-        {
+        Vector3 directionToPlayer = _player.position - transform.position;
+        float distance = directionToPlayer.magnitude;
+
+        if (distance > _detectionRange)
             return false;
-        }
-    }*/
 
-    Vector3 directionToPlayer = _player.position - transform.position;
-    float angleToPlayer = Vector3.Angle(transform.forward, directionToPlayer);
-    float distanceToPlayer = Vector3.Distance(transform.position, _player.position);
-
-    if(_player.position == _playerLastPositionKnown)
-    {
-        return true;
-    }
-
-    if(distanceToPlayer > _detectionRange)
-        {
+        float angle = Vector3.Angle(transform.forward, directionToPlayer);
+        if (angle > _detectionAngle * 0.5f)
             return false;
-        }
-
-        if (angleToPlayer > _detectionAngle * 0.5f)
-        {
-            return false;
-        }
 
         RaycastHit hit;
-        if(Physics.Raycast(transform.position, directionToPlayer, out hit, distanceToPlayer))
+        if (Physics.Raycast(transform.position, directionToPlayer, out hit, distance))
         {
-            if(hit.collider.CompareTag("Player"))
-            {
-                _playerLastPositionKnown = _player.position;
-
-                return true;
-            }
-            else
-            {
-                return false;
-            }
+            return hit.collider.CompareTag("Player");
         }
 
-        return true;
-
-    
+        return false;
     }
-
-
 }
